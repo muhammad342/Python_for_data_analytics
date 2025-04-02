@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        
+        th, td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+        
+        th {
+            background-color: #333;
+            color: white;
+            position: sticky;
+            top: 0;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        
+        tr:hover {
+            background-color: #ddd;
+        }
+        
+        .loading {
+            text-align: center;
+            margin: 30px 0;
+            font-size: 18px;
+        }
+        
+        .error {
+            color: red;
+            text-align: center;
+            margin: 30px 0;
+        }
+        
+        .nav {
+            margin: 20px 0;
+        }
+        
+        .nav a {
+            display: inline-block;
+            padding: 10px 15px;
+            background: #333;
+            color: white;
+            text-decoration: none;
+            margin-right: 10px;
+            border-radius: 3px;
+        }
+        
+        .nav a:hover, .nav a.active {
+            background: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>COVID-19 Global Statistics</h1>
+        <div class="nav">
+            <a href="/" class="active">Data Table</a>
+            <a href="/visualize">Visualizations</a>
+        </div>
+        
+        <div id="loading" class="loading">Loading COVID-19 data...</div>
+        <div id="error" class="error" style="display:none;"></div>
+        
+        <table id="covidTable" style="display:none;">
+            <thead>
+                <tr>
+                    <th>Country</th>
+                    <th>Continent</th>
+                    <th>Population</th>
+                    <th>New Cases</th>
+                    <th>Active Cases</th>
+                    <th>Critical Cases</th>
+                    <th>Recovered</th>
+                    <th>Total Cases</th>
+                    <th>Total Deaths</th>
+                    <th>Last Update</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+              
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            fetchCovidData();
+        });
+        
+        function fetchCovidData() {
+            fetch('/get-covid-data')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.status === 'success') {
+                        populateTable(data.data);
+                        document.getElementById('loading').style.display = 'none';
+                        document.getElementById('covidTable').style.display = 'table';
+                    } else {
+                        throw new Error('Data fetch was not successful');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching data:', error); 
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('error').style.display = 'block';
+                    document.getElementById('error').textContent = 'Error loading data: ' + error.message;
+                });
+        }
+        
+        function populateTable(covidData) {
+            const tableBody = document.getElementById('tableBody');
+            tableBody.innerHTML = '';
+            
+            covidData.forEach(country => {
+                const row = document.createElement('tr');
+                
+                
+                const newCases = country.cases?.new || 'N/A';
+                const activeCases = country.cases?.active || 'N/A';
+                const criticalCases = country.cases?.critical || 'N/A';
+                const recoveredCases = country.cases?.recovered || 'N/A';
+                const totalCases = country.cases?.total || 'N/A';
+                const totalDeaths = country.deaths?.total || 'N/A';
+                
+                let formattedPopulation = 'N/A';
+                if (country.population) {
+                    formattedPopulation = new Intl.NumberFormat().format(country.population);
+                }
+                
+                let formattedDate = 'N/A';
+                if (country.time) {
+                    const date = new Date(country.time);
+                    formattedDate = date.toLocaleString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                }
+                
+                row.innerHTML = `
+                    <td>${country.country || 'N/A'}</td>
+                    <td>${country.continent || 'N/A'}</td>
+                    <td>${formattedPopulation}</td>
+                    <td>${newCases}</td>
+                    <td>${activeCases}</td>
+                    <td>${criticalCases}</td>
+                    <td>${recoveredCases}</td>
+                    <td>${totalCases}</td>
+                    <td>${totalDeaths}</td>
+                    <td>${formattedDate}</td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+        }
+    </script>
+</body>
+</html> 
