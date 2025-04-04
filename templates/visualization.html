@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .charts-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .chart-container {
+            width: 100%;
+            max-width: 600px;
+            margin-bottom: 30px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .nav {
+            margin: 20px 0;
+        }
+        
+        .nav a {
+            display: inline-block;
+            padding: 10px 15px;
+            background: #333;
+            color: white;
+            text-decoration: none;
+            margin-right: 10px;
+            border-radius: 3px;
+        }
+        
+        .nav a:hover, .nav a.active {
+            background: #555;
+        }
+        
+        .loading {
+            text-align: center;
+            margin: 30px 0;
+            font-size: 18px;
+        }
+        
+        .error {
+            color: red;
+            text-align: center;
+            margin: 30px 0;
+        }
+        
+        h2 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 15px;
+        }
+        
+        .continent-selector {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        select {
+            padding: 8px 15px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>COVID-19 Data Visualization</h1>
+        
+        <div class="nav">
+            <a href="/">Data Table</a>
+            <a href="/visualize" class="active">Visualizations</a>
+        </div>
+        
+        <div id="loading" class="loading">Loading COVID-19 data...</div>
+        <div id="error" class="error" style="display:none;"></div>
+        
+        <div class="continent-selector">
+            <label for="continentSelect">Select Continent: </label>
+            <select id="continentSelect">
+                <option value="all">All Continents</option>
+                <!-- Continents will be added dynamically -->
+            </select>
+        </div>
+        
+        <div class="charts-container" id="chartsContainer" style="display:none;">
+            <div class="chart-container">
+                <h2>Top 10 Countries by Total Cases</h2>
+                <canvas id="totalCasesChart"></canvas>
+            </div>
+            
+            <div class="chart-container">
+                <h2>Top 10 Countries by Active Cases</h2>
+                <canvas id="activeCasesChart"></canvas>
+            </div>
+            
+            <div class="chart-container">
+                <h2>Cases Distribution by Continent</h2>
+                <canvas id="continentPieChart"></canvas>
+            </div>
+            
+            <div class="chart-container">
+                <h2>Active vs Recovered Cases</h2>
+                <canvas id="activeVsRecoveredChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            fetchCovidData();
+            
+            // Listen for continent selection change
+            document.getElementById('continentSelect').addEventListener('change', function() {
+                updateCharts(this.value);
+            });
+        });
+        
+        let covidData = [];
+        let charts = {};
+        
+        function fetchCovidData() {
+            fetch('/get-covid-data')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.status === 'success') {
+                        covidData = data.data;
+                        populateContinentSelector();
+                        initializeCharts('all');
+                        document.getElementById('loading').style.display = 'none';
+                        document.getElementById('chartsContainer').style.display = 'flex';
+                    } else {
+                        throw new Error('Data fetch was not successful');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching data:', error); 
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('error').style.display = 'block';
+                    document.getElementById('error').textContent = 'Error loading data: ' + error.message;
+                });
+        }
+        
+        function populateContinentSelector() {
+            const continents = [...new Set(covidData
+                .filter(country => country.continent)
+                .map(country => country.continent))];
+            
+            const selectElement = document.getElementById('continentSelect');
+            
+            continents.forEach(continent => {
+                const option = document.createElement('option');
+                option.value = continent;
+                option.textContent = continent;
+                selectElement.appendChild(option);
+            });
+        }
+        
+        function filterDataByContinent(continent) {
+            if (continent === 'all') {
+                return covidData;
+            }
+            return covidData.filter(country => country.continent === continent);
+        }
+        
+        function initializeCharts(continent) {
+            const filteredData = filterDataByContinent(continent);
+            
+            createTotalCasesChart(filteredData);
+            createActiveCasesChart(filteredData);
+            createContinentPieChart(filteredData);
+            createActiveVsRecoveredChart(filteredData);
+        }
+        
+        function updateCharts(continent) {
+            // Destroy existing charts to prevent memory leaks
+            Object.values(charts).forEach(chart => chart.destroy());
+            
+            // Reinitialize charts with filtered data
+            initializeCharts(continent);
+        }
+        
+        function createTotalCasesChart(data) {
+            // Sort and get top 10 countries by total cases
+            const topCountries = [...data]
+                .filter(country => country.cases?.total)
+                .sort((a, b) => (b.cases?.total || 0) - (a.cases?.total || 0))
+                .slice(0, 10);
+            
+            const ctx = document.getElementById('totalCasesChart').getContext('2d');
+            
+            charts.totalCases = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: topCountries.map(country => country.country),
+                    datasets: [{
+                        label: 'Total Cases',
+                        data: topCountries.map(country => country.cases?.total || 0),
+                        backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+        
+        function createActiveCasesChart(data) {
+            // Sort and get top 10 countries by active cases
+            const topCountries = [...data]
+                .filter(country => country.cases?.active)
+                .sort((a, b) => (b.cases?.active || 0) - (a.cases?.active || 0))
+                .slice(0, 10);
+            
+            const ctx = document.getElementById('activeCasesChart').getContext('2d');
+            
+            charts.activeCases = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: topCountries.map(country => country.country),
+                    datasets: [{
+                        label: 'Active Cases',
+                        data: topCountries.map(country => country.cases?.active || 0),
+                        backgroundColor: 'rgba(255, 99, 132, 0.7)',
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+        
+        function createContinentPieChart(data) {
+            // Group by continent and sum total cases
+            const continentData = {};
+            
+            data.forEach(country => {
+                if (country.continent && country.cases?.total) {
+                    if (!continentData[country.continent]) {
+                        continentData[country.continent] = 0;
+                    }
+                    continentData[country.continent] += country.cases.total || 0;
+                }
+            });
+            
+            const continents = Object.keys(continentData);
+            const caseCounts = continents.map(continent => continentData[continent]);
+            
+            const ctx = document.getElementById('continentPieChart').getContext('2d');
+            
+            // Color palette for pie chart
+            const colors = [
+                'rgba(255, 99, 132, 0.7)',
+                'rgba(54, 162, 235, 0.7)',
+                'rgba(255, 206, 86, 0.7)',
+                'rgba(75, 192, 192, 0.7)',
+                'rgba(153, 102, 255, 0.7)',
+                'rgba(255, 159, 64, 0.7)'
+            ];
+            
+            charts.continentPie = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: continents,
+                    datasets: [{
+                        data: caseCounts,
+                        backgroundColor: colors,
+                        borderColor: colors.map(color => color.replace('0.7', '1')),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'right'
+                        }
+                    }
+                }
+            });
+        }
+        
+        function createActiveVsRecoveredChart(data) {
+            // Get countries with both active and recovered data
+            const validCountries = data.filter(country => 
+                country.cases?.active != null && country.cases?.recovered != null)
+                .sort((a, b) => (b.cases?.active || 0) - (a.cases?.active || 0))
+                .slice(0, 10);
+            
+            const ctx = document.getElementById('activeVsRecoveredChart').getContext('2d');
+            
+            charts.activeVsRecovered = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: validCountries.map(country => country.country),
+                    datasets: [
+                        {
+                            label: 'Active Cases',
+                            data: validCountries.map(country => country.cases?.active || 0),
+                            backgroundColor: 'rgba(255, 99, 132, 0.7)',
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Recovered Cases',
+                            data: validCountries.map(country => country.cases?.recovered || 0),
+                            backgroundColor: 'rgba(75, 192, 192, 0.7)',
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        },
+                        x: {
+                            stacked: false
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html> 
