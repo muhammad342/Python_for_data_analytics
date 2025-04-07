@@ -72,6 +72,17 @@
             border: 1px solid #ddd;
             font-size: 16px;
         }
+        
+        .no-data {
+            text-align: center;
+            margin: 30px 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            color: #6c757d;
+            font-size: 18px;
+        }
     </style>
 </head>
 <body>
@@ -85,12 +96,15 @@
         
         <div id="loading" class="loading">Loading COVID-19 data...</div>
         <div id="error" class="error" style="display:none;"></div>
+        <div id="noData" class="no-data" style="display:none;">
+            No data available to visualize. Please go to the Data Table page and click "Save Current Data" to fetch and save data.
+        </div>
         
-        <div class="continent-selector">
+        <div class="continent-selector" style="display:none;">
             <label for="continentSelect">Select Continent: </label>
             <select id="continentSelect">
                 <option value="all">All Continents</option>
-                <!-- Continents will be added dynamically -->
+             
             </select>
         </div>
         
@@ -119,7 +133,7 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            fetchCovidData();
+            fetchSavedCovidData();
             
             // Listen for continent selection change
             document.getElementById('continentSelect').addEventListener('change', function() {
@@ -130,8 +144,20 @@
         let covidData = [];
         let charts = {};
         
-        function fetchCovidData() {
-            fetch('/get-covid-data')
+        function fetchSavedCovidData() {
+            const loadingDiv = document.getElementById('loading');
+            const errorDiv = document.getElementById('error');
+            const noDataDiv = document.getElementById('noData');
+            const chartsContainer = document.getElementById('chartsContainer');
+            const continentSelector = document.querySelector('.continent-selector');
+            
+            loadingDiv.style.display = 'block';
+            errorDiv.style.display = 'none';
+            noDataDiv.style.display = 'none';
+            chartsContainer.style.display = 'none';
+            continentSelector.style.display = 'none';
+            
+            fetch('/get-saved-covid-data')
                 .then(response => {
                     if (!response.ok) {
                         throw new Error('Network response was not ok');
@@ -139,21 +165,27 @@
                     return response.json();
                 })
                 .then(data => {
+                    loadingDiv.style.display = 'none';
+                    
                     if (data.status === 'success') {
-                        covidData = data.data;
-                        populateContinentSelector();
-                        initializeCharts('all');
-                        document.getElementById('loading').style.display = 'none';
-                        document.getElementById('chartsContainer').style.display = 'flex';
+                        if (data.data.length === 0) {
+                            noDataDiv.style.display = 'block';
+                        } else {
+                            covidData = data.data;
+                            continentSelector.style.display = 'block';
+                            chartsContainer.style.display = 'flex';
+                            populateContinentSelector();
+                            initializeCharts('all');
+                        }
                     } else {
                         throw new Error('Data fetch was not successful');
                     }
                 })
                 .catch(error => {
-                    console.error('Error fetching data:', error); 
-                    document.getElementById('loading').style.display = 'none';
-                    document.getElementById('error').style.display = 'block';
-                    document.getElementById('error').textContent = 'Error loading data: ' + error.message;
+                    console.error('Error fetching data:', error);
+                    loadingDiv.style.display = 'none';
+                    errorDiv.style.display = 'block';
+                    errorDiv.textContent = 'Error loading data: ' + error.message;
                 });
         }
         
@@ -205,6 +237,10 @@
             
             const ctx = document.getElementById('totalCasesChart').getContext('2d');
             
+            if (charts.totalCases) {
+                charts.totalCases.destroy();
+            }
+            
             charts.totalCases = new Chart(ctx, {
                 type: 'bar',
                 data: {
@@ -236,6 +272,10 @@
                 .slice(0, 10);
             
             const ctx = document.getElementById('activeCasesChart').getContext('2d');
+            
+            if (charts.activeCases) {
+                charts.activeCases.destroy();
+            }
             
             charts.activeCases = new Chart(ctx, {
                 type: 'bar',
@@ -288,6 +328,10 @@
                 'rgba(255, 159, 64, 0.7)'
             ];
             
+            if (charts.continentPie) {
+                charts.continentPie.destroy();
+            }
+            
             charts.continentPie = new Chart(ctx, {
                 type: 'pie',
                 data: {
@@ -318,6 +362,10 @@
                 .slice(0, 10);
             
             const ctx = document.getElementById('activeVsRecoveredChart').getContext('2d');
+            
+            if (charts.activeVsRecovered) {
+                charts.activeVsRecovered.destroy();
+            }
             
             charts.activeVsRecovered = new Chart(ctx, {
                 type: 'bar',

@@ -62,11 +62,59 @@
         .nav a:hover, .nav a.active {
             background: #555;
         }
+        
+        .actions {
+            margin: 20px 0;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        .btn:hover {
+            background-color: #45a049;
+        }
+        
+        #saveStatus {
+            margin-left: 10px;
+            padding: 8px;
+            border-radius: 4px;
+        }
+        
+        .success {
+            background-color: #dff0d8;
+            color: #3c763d;
+        }
+        
+        .error {
+            background-color: #f2dede;
+            color: #a94442;
+        }
+        
+        .no-data {
+            text-align: center;
+            margin: 30px 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            color: #6c757d;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>COVID-19 Global Statistics</h1>
+        <div class="actions">
+            <button id="saveDataBtn" class="btn">Save Current Data</button>
+            <span id="saveStatus" style="display: none;"></span>
+        </div>
         <div class="nav">
             <a href="/" class="active">Data Table</a>
             <a href="/visualize">Visualizations</a>
@@ -74,6 +122,9 @@
         
         <div id="loading" class="loading">Loading COVID-19 data...</div>
         <div id="error" class="error" style="display:none;"></div>
+        <div id="noData" class="no-data" style="display:none;">
+            No data available in the database. Click "Save Current Data" to fetch and save data.
+        </div>
         
         <table id="covidTable" style="display:none;">
             <thead>
@@ -98,11 +149,21 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            fetchCovidData();
+            fetchSavedData();
         });
         
-        function fetchCovidData() {
-            fetch('/get-covid-data')
+        function fetchSavedData() {
+            const loadingDiv = document.getElementById('loading');
+            const errorDiv = document.getElementById('error');
+            const noDataDiv = document.getElementById('noData');
+            const tableDiv = document.getElementById('covidTable');
+            
+            loadingDiv.style.display = 'block';
+            errorDiv.style.display = 'none';
+            noDataDiv.style.display = 'none';
+            tableDiv.style.display = 'none';
+            
+            fetch('/get-saved-covid-data')
                 .then(response => {
                     if (!response.ok) {
                         throw new Error('Network response was not ok');
@@ -110,19 +171,24 @@
                     return response.json();
                 })
                 .then(data => {
+                    loadingDiv.style.display = 'none';
+                    
                     if (data.status === 'success') {
-                        populateTable(data.data);
-                        document.getElementById('loading').style.display = 'none';
-                        document.getElementById('covidTable').style.display = 'table';
+                        if (data.data.length === 0) {
+                            noDataDiv.style.display = 'block';
+                        } else {
+                            tableDiv.style.display = 'table';
+                            populateTable(data.data);
+                        }
                     } else {
                         throw new Error('Data fetch was not successful');
                     }
                 })
                 .catch(error => {
-                    console.error('Error fetching data:', error); 
-                    document.getElementById('loading').style.display = 'none';
-                    document.getElementById('error').style.display = 'block';
-                    document.getElementById('error').textContent = 'Error loading data: ' + error.message;
+                    console.error('Error fetching data:', error);
+                    loadingDiv.style.display = 'none';
+                    errorDiv.style.display = 'block';
+                    errorDiv.textContent = 'Error loading data: ' + error.message;
                 });
         }
         
@@ -174,6 +240,43 @@
                 tableBody.appendChild(row);
             });
         }
+        
+        document.getElementById('saveDataBtn').addEventListener('click', function() {
+            const button = this;
+            const saveStatus = document.getElementById('saveStatus');
+            
+            button.disabled = true;
+            button.textContent = 'Saving...';
+            saveStatus.style.display = 'none';
+            
+            fetch('/save-covid-data', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                saveStatus.style.display = 'inline';
+                if (data.status === 'success') {
+                    saveStatus.textContent = data.message;
+                    saveStatus.className = 'success';
+                    // Refresh the table data after successful save
+                    fetchSavedData();
+                } else {
+                    throw new Error(data.message);
+                }
+            })
+            .catch(error => {
+                saveStatus.style.display = 'inline';
+                saveStatus.textContent = 'Error: ' + error.message;
+                saveStatus.className = 'error';
+            })
+            .finally(() => {
+                button.disabled = false;
+                button.textContent = 'Save Current Data';
+            });
+        });
     </script>
 </body>
 </html> 
