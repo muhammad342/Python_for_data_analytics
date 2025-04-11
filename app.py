@@ -7,7 +7,7 @@ from models import db, CovidStats
 app = Flask(__name__)
 
 # Database configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:123456@localhost/covid_tracker'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://userab:44gZMkqIxBuOYqbG1FkYbURxvKUOvQ85@dpg-cvsfgner433s73c68atg-a/covid_tracker'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize the db with the app
