@@ -138,7 +138,6 @@
                     <th>Recovered</th>
                     <th>Total Cases</th>
                     <th>Total Deaths</th>
-                    <th>Last Update</th>
                 </tr>
             </thead>
             <tbody id="tableBody">
@@ -212,18 +211,6 @@
                     formattedPopulation = new Intl.NumberFormat().format(country.population);
                 }
                 
-                let formattedDate = 'N/A';
-                if (country.time) {
-                    const date = new Date(country.time);
-                    formattedDate = date.toLocaleString('en-US', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                    });
-                }
-                
                 row.innerHTML = `
                     <td>${country.country || 'N/A'}</td>
                     <td>${country.continent || 'N/A'}</td>
@@ -234,7 +221,6 @@
                     <td>${recoveredCases}</td>
                     <td>${totalCases}</td>
                     <td>${totalDeaths}</td>
-                    <td>${formattedDate}</td>
                 `;
                 
                 tableBody.appendChild(row);
